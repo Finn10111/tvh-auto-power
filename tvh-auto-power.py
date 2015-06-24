@@ -70,7 +70,7 @@ def main():
 
     devnull = open('/dev/null', 'w')
     # Check also if somebody is connected via SSH or if there is a HTTP connection
-    if subprocess.call('netstat -pantu | egrep "192.168.1.8:(9981|9982|22)"', stdout=devnull, shell=True) == 0:
+    if subprocess.call('netstat -pantu 2>/dev/null| egrep "(`ip addr | grep -Po \'((?<=inet )([\d\.]*)(?=.*global))\' | paste -d\'|\' -s`)\:(9981|9982|22)"', stdout=devnull, shell=True) == 0:
         shutdown_allowed = False
 
     if shutdown_allowed:
