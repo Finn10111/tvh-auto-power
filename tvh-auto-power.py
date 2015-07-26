@@ -73,19 +73,20 @@ def main():
     if subprocess.call('netstat -pantu 2>/dev/null| egrep "(`ip addr | grep -Po \'((?<=inet )([\d\.]*)(?=.*global))\' | paste -d\'|\' -s`)\:(9981|9982|22)"', stdout=devnull, shell=True) == 0:
         shutdown_allowed = False
 
+    if first_rectime == 2147483647:
+        # If no recordings are scheduled wake up the next day
+        waketime = int(time.time()) + 86400
+    else:
+        # If a recording is scheduled wake up X minutes before it begins
+        waketime = first_rectime - pre_recording_wakeup_time
+    # Clear previously set wake up time
+    subprocess.call('echo 0 > /sys/class/rtc/rtc0/wakealarm', shell=True)
+    time.sleep(1)
+    # Set the new wake up time
+    subprocess.call('echo %s > /sys/class/rtc/rtc0/wakealarm' % waketime, shell=True)
+    time.sleep(1)
+
     if shutdown_allowed:
-        if first_rectime == 2147483647:
-            # If no recordings are scheduled wake up the next day
-            waketime = int(time.time()) + 86400
-        else:
-            # If a recording is scheduled wake up X minutes before it begins
-            waketime = first_rectime - pre_recording_wakeup_time
-        # Clear previously set wake up time
-        subprocess.call('echo 0 > /sys/class/rtc/rtc0/wakealarm', shell=True)
-        time.sleep(1)
-        # Set the new wake up time
-        subprocess.call('echo %s > /sys/class/rtc/rtc0/wakealarm' % waketime, shell=True)
-        time.sleep(1)
         # Shutdown
         subprocess.call('/sbin/shutdown -h now', shell=True)
 
