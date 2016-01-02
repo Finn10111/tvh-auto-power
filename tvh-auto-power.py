@@ -34,10 +34,18 @@ import sys
 import json
 import time
 import urllib2
+import httplib
 import subprocess
+import argparse
+import datetime
 
 
 def main():
+    parser = argparse.ArgumentParser(description='Tvheadend automativ shutdown and wakeup script')
+    parser.add_argument('-d', '--debug', action='store_true', help='turn on debug mode')
+    args = parser.parse_args()
+    debug = args.debug
+
     # Change these if necessary.
     base_url = 'http://localhost:9981/'
     username = None
@@ -49,8 +57,9 @@ def main():
 
     shutdown_allowed = True
     first_rectime = 2147483647
-    subscriptions_url = 'subscriptions'
-    recordings_url = 'dvrlist_upcoming'
+
+    # Detect Tvheadend version and use given urls
+    subscriptions_url, recordings_url = get_tvh_urls(base_url, username, password)
 
     # Get list of subscriptions
     subscriptions = get_json(base_url + subscriptions_url, username, password)
@@ -58,6 +67,8 @@ def main():
     # Don't shutdown of clients are connected
     if len(subscriptions['entries']) > 0:
         shutdown_allowed = False
+        if debug:
+            print "Shutdown now allowed, there are some active subscriptions."
 
     # Get list of recordings
     recordings = get_json(base_url + recordings_url, username, password)
@@ -67,11 +78,15 @@ def main():
             first_rectime = int(r['start'])
         if r['start'] < (int(time.time()) + pre_recording_shutdown_time):
             shutdown_allowed = False
+            if debug:
+                print "Shutdown now allowed, there are some active or pending recordings."
 
     devnull = open('/dev/null', 'w')
     # Check also if somebody is connected via SSH or if there is a HTTP connection
     if subprocess.call('netstat -pantu 2>/dev/null| egrep "(`ip addr | grep -Po \'((?<=inet )([\d\.]*)(?=.*global))\' | paste -d\'|\' -s`)\:(9981|9982|22)"', stdout=devnull, shell=True) == 0:
         shutdown_allowed = False
+        if debug:
+            print "Shutdown now allowed, there are some SSH, Tvheadend webinterface or HTSP connections."
 
     if first_rectime == 2147483647:
         # If no recordings are scheduled wake up the next day
@@ -83,6 +98,8 @@ def main():
     subprocess.call('echo 0 > /sys/class/rtc/rtc0/wakealarm', shell=True)
     time.sleep(1)
     # Set the new wake up time
+    if debug:
+        print "Setting wake up time to %s" % datetime.datetime.fromtimestamp(waketime).strftime('%Y-%m-%d %H:%M:%S')
     subprocess.call('echo %s > /sys/class/rtc/rtc0/wakealarm' % waketime, shell=True)
     time.sleep(1)
 
@@ -90,12 +107,15 @@ def main():
         # Shutdown
         subprocess.call('/sbin/shutdown -h now', shell=True)
 
+    if debug:
+        print "shutdown allowed: " + str(shutdown_allowed)
+
 
 def get_json(url, username=None, password=None):
     # Use credentials if supplied
     if username is not None and password is not None:
         passman = urllib2.HTTPPasswordMgrWithDefaultRealm()
-        passman.add_password(None, url, 'autopower', 'autopower')
+        passman.add_password(None, url, username, password)
         authhandler = urllib2.HTTPBasicAuthHandler(passman)
         opener = urllib2.build_opener(authhandler)
         urllib2.install_opener(opener)
@@ -107,6 +127,19 @@ def get_json(url, username=None, password=None):
     json_object = response.read()
     response_dict = json.loads(json_object)
     return response_dict
+
+
+def get_tvh_urls(base_url, username, password):
+    subscriptions_url = 'subscriptions'
+    recordings_url = 'dvrlist_upcoming'
+    try:
+        # This works only for Tvheadend 3.x
+        get_json(base_url + subscriptions_url)
+    except httplib.BadStatusLine as e:
+        # This exception is thrown when using Tvheadend 4.x
+        subscriptions_url = 'api/status/connections'
+        recordings_url = 'api/dvr/entry/grid_upcoming'
+    return subscriptions_url, recordings_url
 
 
 if __name__ == '__main__':
