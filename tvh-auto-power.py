@@ -84,6 +84,9 @@ def main():
             if debug:
                 print "Shutdown now allowed, there are some active or pending recordings."
 
+    if debug:
+        print "first_rectime: %s" % first_rectime
+
     devnull = open('/dev/null', 'w')
     # Check also if somebody is connected via SSH or if there is a HTTP connection
     if subprocess.call('netstat -pantu 2>/dev/null| egrep "(`ip addr | grep -Po \'((?<=inet )([\d\.]*)(?=.*global))\' | paste -d\'|\' -s`)\:(9981|9982|22)"', stdout=devnull, shell=True) == 0:
@@ -91,7 +94,7 @@ def main():
         if debug:
             print "Shutdown now allowed, there are some SSH, Tvheadend webinterface or HTSP connections."
 
-    if first_rectime == 2147483647 or first_rectime < int(time.time()):
+    if first_rectime == 2147483647 or (first_rectime - pre_recording_wakeup_time) < int(time.time()):
         # If no recordings are scheduled or there is only one recording which is running wake up the next day
         waketime = int(time.time()) + 86400
     else:
