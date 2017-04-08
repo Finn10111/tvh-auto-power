@@ -88,12 +88,13 @@ def main():
         if debug:
             print "Shutdown now allowed, there are some SSH, Tvheadend webinterface or HTSP connections."
 
-    if first_rectime == 2147483647:
-        # If no recordings are scheduled wake up the next day
+    if first_rectime == 2147483647 or first_rectime < int(time.time()):
+        # If no recordings are scheduled or there is only one recording which is running wake up the next day
         waketime = int(time.time()) + 86400
     else:
         # If a recording is scheduled wake up X minutes before it begins
         waketime = first_rectime - pre_recording_wakeup_time
+
     # Clear previously set wake up time
     subprocess.call('echo 0 > /sys/class/rtc/rtc0/wakealarm', shell=True)
     time.sleep(1)
@@ -102,10 +103,13 @@ def main():
         print "Setting wake up time to %s" % datetime.datetime.fromtimestamp(waketime).strftime('%Y-%m-%d %H:%M:%S')
     subprocess.call('echo %s > /sys/class/rtc/rtc0/wakealarm' % waketime, shell=True)
     time.sleep(1)
+    subprocess.call('/usr/sbin/rtcwake -m no -t %s' % waketime, stdout=devnull, shell=True)
+    time.sleep(1)
 
     if shutdown_allowed:
         # Shutdown
-        subprocess.call('/sbin/shutdown -h now', shell=True)
+        subprocess.call('/usr/sbin/rtcwake -m off -t %s' % waketime, stdout=devnull, shell=True)
+        #subprocess.call('/sbin/shutdown -h now', shell=True)
 
     if debug:
         print "shutdown allowed: " + str(shutdown_allowed)
