@@ -58,6 +58,9 @@ def main():
     shutdown_allowed = True
     first_rectime = 2147483647
 
+    # The system must at least being up for min_uptime seconds for being allowed to shut down
+    min_uptime = 3600
+
     # Detect Tvheadend version and use given urls
     subscriptions_url, recordings_url = get_tvh_urls(base_url, username, password)
 
@@ -105,6 +108,14 @@ def main():
     time.sleep(1)
     subprocess.call('/usr/sbin/rtcwake -m no -t %s' % waketime, stdout=devnull, shell=True)
     time.sleep(1)
+
+    with open('/proc/uptime', 'r') as f:
+        uptime_seconds = float(f.readline().split()[0])
+        # Do not shut down within the first hour after boot
+        if uptime_seconds < min_uptime:
+            shutdown_allowed = False
+            if debug:
+                print "System is running less than %s seconds, not shutting down." % min_uptime;
 
     if shutdown_allowed:
         # Shutdown
