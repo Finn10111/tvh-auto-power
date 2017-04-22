@@ -71,7 +71,7 @@ def main():
     if len(subscriptions['entries']) > 0:
         shutdown_allowed = False
         if debug:
-            print "Shutdown now allowed, there are some active subscriptions."
+            print "Shutdown not allowed, there are some active subscriptions."
 
     # Get list of recordings
     recordings = get_json(base_url + recordings_url, username, password)
@@ -82,7 +82,7 @@ def main():
         if r['start'] < (int(time.time()) + pre_recording_shutdown_time):
             shutdown_allowed = False
             if debug:
-                print "Shutdown now allowed, there are some active or pending recordings."
+                print "Shutdown not allowed, there are some active or pending recordings."
 
     if debug:
         print "first_rectime: %s" % first_rectime
@@ -120,13 +120,16 @@ def main():
             if debug:
                 print "System is running less than %s seconds, not shutting down." % min_uptime;
 
+    if debug:
+        print "shutdown allowed: " + str(shutdown_allowed)
+
     if shutdown_allowed:
         # Shutdown
+        if debug:
+            print "calling: /usr/sbin/rtcwake -m off -t %s" % waketime
         subprocess.call('/usr/sbin/rtcwake -m off -t %s' % waketime, stdout=devnull, shell=True)
         #subprocess.call('/sbin/shutdown -h now', shell=True)
 
-    if debug:
-        print "shutdown allowed: " + str(shutdown_allowed)
 
 
 def get_json(url, username=None, password=None):
