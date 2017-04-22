@@ -54,12 +54,11 @@ def main():
     pre_recording_wakeup_time = 900
     # Don't shutdown if a recordings is scheduled within the next X seconds
     pre_recording_shutdown_time = 1800
+    # The system must at least being up for min_uptime seconds for being allowed to shut down
+    min_uptime = 3600
 
     shutdown_allowed = True
     first_rectime = 2147483647
-
-    # The system must at least being up for min_uptime seconds for being allowed to shut down
-    min_uptime = 3600
 
     # Detect Tvheadend version and use given urls
     subscriptions_url, recordings_url = get_tvh_urls(base_url, username, password)
