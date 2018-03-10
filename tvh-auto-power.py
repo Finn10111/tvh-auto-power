@@ -1,4 +1,4 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python3
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -29,12 +29,11 @@
 # The sleep commands prevents the server to shutdown
 # immeadeatly after boot.
 
-import os
 import sys
 import json
 import time
-import urllib2
-import httplib
+import urllib.request
+import http
 import subprocess
 import argparse
 import datetime
@@ -43,8 +42,10 @@ import datetime
 def main():
     parser = argparse.ArgumentParser(description='Tvheadend automativ shutdown and wakeup script')
     parser.add_argument('-d', '--debug', action='store_true', help='turn on debug mode')
+    parser.add_argument('-f', '--force', action='store_true', help='force shutdown but set wakeup time')
     args = parser.parse_args()
     debug = args.debug
+    force = args.force
 
     # Change these if necessary.
     base_url = 'http://localhost:9981/'
@@ -70,7 +71,7 @@ def main():
     if len(subscriptions['entries']) > 0:
         shutdown_allowed = False
         if debug:
-            print "Shutdown not allowed, there are some active subscriptions."
+            print("Shutdown not allowed, there are some active subscriptions.")
 
     # Get list of recordings
     recordings = get_json(base_url + recordings_url, username, password)
@@ -81,17 +82,17 @@ def main():
         if r['start'] < (int(time.time()) + pre_recording_shutdown_time):
             shutdown_allowed = False
             if debug:
-                print "Shutdown not allowed, there are some active or pending recordings."
+                print("Shutdown not allowed, there are some active or pending recordings.")
 
     if debug:
-        print "first_rectime: %s" % first_rectime
+        print("first_rectime: %s" % first_rectime)
 
     devnull = open('/dev/null', 'w')
     # Check also if somebody is connected via SSH or if there is a HTTP connection
     if subprocess.call('netstat -pantu 2>/dev/null| egrep "(`ip addr | grep -Po \'((?<=inet )([\d\.]*)(?=.*global))\' | paste -d\'|\' -s`)\:(9981|9982|22)"', stdout=devnull, shell=True) == 0:
         shutdown_allowed = False
         if debug:
-            print "Shutdown now allowed, there are some SSH, Tvheadend webinterface or HTSP connections."
+            print("Shutdown now allowed, there are some SSH, Tvheadend webinterface or HTSP connections.")
 
     if first_rectime == 2147483647 or (first_rectime - pre_recording_wakeup_time) < int(time.time()):
         # If no recordings are scheduled or there is only one recording which is running wake up the next day
@@ -105,7 +106,7 @@ def main():
     time.sleep(1)
     # Set the new wake up time
     if debug:
-        print "Setting wake up time to %s" % datetime.datetime.fromtimestamp(waketime).strftime('%Y-%m-%d %H:%M:%S')
+        print("Setting wake up time to %s" % datetime.datetime.fromtimestamp(waketime).strftime('%Y-%m-%d %H:%M:%S'))
     subprocess.call('echo %s > /sys/class/rtc/rtc0/wakealarm' % waketime, shell=True)
     time.sleep(1)
     subprocess.call('/usr/sbin/rtcwake -m no -t %s' % waketime, stdout=devnull, shell=True)
@@ -117,34 +118,36 @@ def main():
         if uptime_seconds < min_uptime:
             shutdown_allowed = False
             if debug:
-                print "System is running less than %s seconds, not shutting down." % min_uptime;
+                print("System is running less than %s seconds, not shutting down." % min_uptime)
 
     if debug:
-        print "shutdown allowed: " + str(shutdown_allowed)
+        print("shutdown allowed: " + str(shutdown_allowed))
 
-    if shutdown_allowed:
+    if shutdown_allowed or force:
         # Shutdown
         if debug:
-            print "calling: /usr/sbin/rtcwake -m off -t %s" % waketime
+            if force:
+                print("shutdown forced")
+            print("calling: /usr/sbin/rtcwake -m off -t %s" % waketime)
         subprocess.call('/usr/sbin/rtcwake -m off -t %s' % waketime, stdout=devnull, shell=True)
-        #subprocess.call('/sbin/shutdown -h now', shell=True)
 
 
 
 def get_json(url, username=None, password=None):
     # Use credentials if supplied
     if username is not None and password is not None:
-        passman = urllib2.HTTPPasswordMgrWithDefaultRealm()
+        passman = urllib.request.HTTPPasswordMgrWithDefaultRealm()
         passman.add_password(None, url, username, password)
-        authhandler = urllib2.HTTPBasicAuthHandler(passman)
-        opener = urllib2.build_opener(authhandler)
-        urllib2.install_opener(opener)
+        authhandler = urllib.request.HTTPBasicAuthHandler(passman)
+        opener = urllib.request.build_opener(authhandler)
+        opener.open(url)
+        urllib.request.install_opener(opener)
     try:
-        response = urllib2.urlopen(url)
-    except urllib2.HTTPError as e:
-        print e
+        response = urllib.request.urlopen(url)
+    except urllib.request.HTTPError as e:
+        print(e)
         sys.exit(1)
-    json_object = response.read()
+    json_object = response.read().decode()
     response_dict = json.loads(json_object)
     return response_dict
 
@@ -155,7 +158,7 @@ def get_tvh_urls(base_url, username, password):
     try:
         # This works only for Tvheadend 3.x
         get_json(base_url + subscriptions_url)
-    except httplib.BadStatusLine as e:
+    except http.client.BadStatusLine as e:
         # This exception is thrown when using Tvheadend 4.x
         subscriptions_url = 'api/status/connections'
         recordings_url = 'api/dvr/entry/grid_upcoming'
